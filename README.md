@@ -2,7 +2,7 @@
 
 
 
-Attempting to design a 24 hour clock on a quad seven-segment display using as few pins from an MCU as possible while also having some fun by putting this through a digital circuit of my design. 
+Attempting to design a 24 hour clock on a quad seven-segment display using as few pins from an MCU as possible while also having some fun by putting this through a digital circuit of my design.
 
 
 
