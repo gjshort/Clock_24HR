@@ -1,7 +1,7 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.c
+  * @file           : Clock_24HR_main.c
   * @brief          : Defines all behavior for a 24-hour clock
   * @author			: Griffin Short
   ******************************************************************************
@@ -41,6 +41,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+RTC_HandleTypeDef hrtc;
+
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim10;
@@ -55,6 +57,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM10_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -74,7 +77,7 @@ typedef enum DISPLAY_CODE {
 	THREE = 0b00001101,		// a,b,c,d,e,f,g,dp
 	FOUR  = 0b10011001,
 	FIVE  = 0b01001001,
-	SIX   = 0b10000001,
+	SIX   = 0b01000001,
 	SEVEN = 0b00011111,
 	EIGHT = 0b00000001,
 	NINE  = 0b00011001
@@ -101,6 +104,49 @@ DIGIT_SEL_CODE sr_num = DIGIT_ONE;
 // Variables for rotating through digit display
 DIGIT_SEL_CODE digit_select = DIGIT_ONE;
 
+// --------------- Translate Int to Display Code ----------------
+DISPLAY_CODE int_to_disp_code(uint8_t int_val) {
+	DISPLAY_CODE ret_code;
+	switch(int_val) {
+	case 0:
+		ret_code = ZERO;
+		break;
+	case 1:
+		ret_code = ONE;
+		break;
+	case 2:
+		ret_code = TWO;
+		break;
+	case 3:
+		ret_code = THREE;
+		break;
+	case 4:
+		ret_code = FOUR;
+		break;
+	case 5:
+		ret_code = FIVE;
+		break;
+	case 6:
+		ret_code = SIX;
+		break;
+	case 7:
+		ret_code = SEVEN;
+		break;
+	case 8:
+		ret_code = EIGHT;
+		break;
+	case 9:
+		ret_code = NINE;
+		break;
+	default:
+		ret_code = ZERO;
+		break;
+	}
+	return ret_code;
+}
+// ------------END Translate Int to Display Code ----------------
+
+
 // ------------------ Shift Display Code ------------------------
 // Instigates the process to shift a new digit out to a shift register
 // Requires the digit number and display code.
@@ -108,7 +154,6 @@ void shift_display_code_tim(DIGIT_SEL_CODE digit, DISPLAY_CODE code) {
 	shift_code = code;
 	sr_num = digit;
 	is_shifting = 1;
-	HAL_TIM_Base_Stop_IT(&htim10); // Halt display rotation in case interrupts clash (this halt in rotation is negligible)
 	HAL_TIM_Base_Start_IT(&htim3); // Start timer for shifting
 	while(is_shifting) {} //Wait until done
 }
@@ -194,18 +239,16 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM1_Init();
   MX_TIM10_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
+
+  // Set interrupt priorities (First is shifting timer (TIM3), then RTC, then digit rotation)
 
   // TIM3 : Shift register clock/data timing
   //		84 MHz -> 6 Mhz with (14-1) pre-scaler and 65,535 counter
   //
   // TIM10 : Quad display rotation timing
   //		84 MHz -> 1 kHz with (42,000-1) pre-scaler and 32,768 counter
-
-  shift_display_code_tim(DIGIT_ONE, ZERO);
-  shift_display_code_tim(DIGIT_TWO, EIGHT);
-  shift_display_code_tim(DIGIT_THREE, ZERO);
-  shift_display_code_tim(DIGIT_FOUR, FOUR);
 
   HAL_Delay(1000);
   HAL_TIM_Base_Start_IT(&htim10); // Start timer for digit rotation
@@ -245,9 +288,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 16;
@@ -273,6 +318,95 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x8;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the Alarm A
+  */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x0;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY|RTC_ALARMMASK_HOURS
+                              |RTC_ALARMMASK_MINUTES;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  // Starting display on clock
+  shift_display_code_tim(DIGIT_ONE, int_to_disp_code((sTime.Hours & 0xF0) >> 4U));
+  shift_display_code_tim(DIGIT_TWO, int_to_disp_code(sTime.Hours & 0x0F));
+  shift_display_code_tim(DIGIT_THREE, int_to_disp_code((sTime.Seconds & 0xF0) >> 4U));
+  shift_display_code_tim(DIGIT_FOUR, int_to_disp_code(sTime.Seconds & 0x0F));
+
+  /* USER CODE END RTC_Init 2 */
+
 }
 
 /**
@@ -337,7 +471,6 @@ static void MX_TIM3_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
   /* USER CODE BEGIN TIM3_Init 1 */
-
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 14-1;
@@ -536,6 +669,30 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 }
 // ------------------ END Shift Register Timer ISR -----------------------------
 
+// -------------------------- RTC ISR ------------------------------
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc) {
+
+	//HAL_TIM_Base_Stop_IT(&htim10); // Pause digit rotation
+
+	// Get time
+	RTC_TimeTypeDef time;
+	RTC_DateTypeDef date;
+	HAL_RTC_GetTime(hrtc, &time, FORMAT_BCD);
+	HAL_RTC_GetDate(hrtc, &date, FORMAT_BCD);
+	uint8_t hrs = time.Hours;
+	uint8_t mins = time.Minutes;
+	//uint8_t secs = time.Seconds;
+
+	// Update display
+	shift_display_code_tim(DIGIT_ONE, int_to_disp_code((hrs & 0xF0) >> 4U));
+	shift_display_code_tim(DIGIT_TWO, int_to_disp_code(hrs & 0x0F));
+	shift_display_code_tim(DIGIT_THREE, int_to_disp_code((mins & 0xF0) >> 4U));
+	shift_display_code_tim(DIGIT_FOUR, int_to_disp_code(mins & 0x0F));
+
+	//HAL_TIM_Base_Start_IT(&htim10); // Resume digit rotation
+
+}
+// -------------------------- END RTC ISR --------------------------
 
 // ***************************** END Interrupt Service Routines ************************************
 /* USER CODE END 4 */
