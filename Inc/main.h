@@ -83,6 +83,12 @@ void Error_Handler(void);
 #define MUX_1_GPIO_Port GPIOB
 #define MUX_EN_Pin GPIO_PIN_10
 #define MUX_EN_GPIO_Port GPIOB
+#define IN_HRS_Pin GPIO_PIN_6
+#define IN_HRS_GPIO_Port GPIOC
+#define IN_HRS_EXTI_IRQn EXTI9_5_IRQn
+#define IN_MINS_Pin GPIO_PIN_8
+#define IN_MINS_GPIO_Port GPIOC
+#define IN_MINS_EXTI_IRQn EXTI9_5_IRQn
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14

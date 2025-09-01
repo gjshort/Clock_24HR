@@ -68,6 +68,8 @@ static void MX_RTC_Init(void);
 #define LOW 0
 #define HIGH 1
 
+
+
 // Represents, in inverted binary, the values of the LEDs
 // for each value needed for display
 typedef enum DISPLAY_CODE {
@@ -345,7 +347,7 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.SynchPrediv = 249;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
@@ -611,6 +613,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(MUX_EN_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : IN_HRS_Pin IN_MINS_Pin */
+  GPIO_InitStruct.Pin = IN_HRS_Pin|IN_MINS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 3, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
@@ -693,6 +705,60 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc) {
 
 }
 // -------------------------- END RTC ISR --------------------------
+
+// ------------------------ Input Buttons ISR ------------------------
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+
+	// Get current time
+	RTC_TimeTypeDef time;
+	RTC_DateTypeDef date;
+	HAL_RTC_GetTime(&hrtc, &time, FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &date, FORMAT_BIN);
+	uint8_t hrs = time.Hours;
+	uint8_t mins = time.Minutes;
+
+	// Add an hour to RTC
+	if(GPIO_Pin == IN_HRS_Pin) {
+		if(hrs >= 23) {
+			hrs = 0;
+		}
+		else {
+			hrs = hrs + 1;
+		}
+	}
+	// Add a minute to RTC
+	else if(GPIO_Pin == IN_MINS_Pin) {
+		if(mins >= 59) {
+			mins = 0;
+		}
+		else {
+			mins = mins + 1;
+		}
+	}
+
+	// Update RTC
+	time.Hours = hrs;
+	time.Minutes = mins;
+	time.Seconds = 0;
+	if (HAL_RTC_SetTime(&hrtc, &time, FORMAT_BIN) != HAL_OK) {
+		Error_Handler();
+	}
+	if (HAL_RTC_SetDate(&hrtc, &date, FORMAT_BIN) != HAL_OK) {
+		Error_Handler();
+	}
+
+	// Shift out new time to registers
+	hrs = RTC_ByteToBcd2(hrs);
+	mins = RTC_ByteToBcd2(mins);
+
+	shift_display_code_tim(DIGIT_ONE, int_to_disp_code((hrs & 0xF0) >> 4U));
+	shift_display_code_tim(DIGIT_TWO, int_to_disp_code(hrs & 0x0F));
+	shift_display_code_tim(DIGIT_THREE, int_to_disp_code((mins & 0xF0) >> 4U));
+	shift_display_code_tim(DIGIT_FOUR, int_to_disp_code(mins & 0x0F));
+
+
+}
+// -------------------- END Input Buttons ISR ------------------------
 
 // ***************************** END Interrupt Service Routines ************************************
 /* USER CODE END 4 */
