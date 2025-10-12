@@ -290,11 +290,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
-  RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 16;
@@ -347,7 +346,7 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 249;
+  hrtc.Init.SynchPrediv = 255;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
@@ -709,6 +708,8 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc) {
 // ------------------------ Input Buttons ISR ------------------------
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
+	HAL_NVIC_DisableIRQ(EXTI9_5_IRQn); // Debounce button
+
 	// Get current time
 	RTC_TimeTypeDef time;
 	RTC_DateTypeDef date;
@@ -756,6 +757,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	shift_display_code_tim(DIGIT_THREE, int_to_disp_code((mins & 0xF0) >> 4U));
 	shift_display_code_tim(DIGIT_FOUR, int_to_disp_code(mins & 0x0F));
 
+	HAL_Delay(50);
+	HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 }
 // -------------------- END Input Buttons ISR ------------------------
